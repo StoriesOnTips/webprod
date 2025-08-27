@@ -29,11 +29,7 @@ export interface UserDetailContextType {
   readonly showErrorToast?: (title: string, description?: string) => void;
   readonly showInfoToast?: (title: string, description?: string) => void;
   readonly showWarningToast?: (title: string, description?: string) => void;
-  // Auth state flags
-  readonly isAuthReady: boolean;
-  readonly onboardingCompleted: boolean;
-  readonly shouldRedirectToOnboarding: boolean;
-  readonly shouldRedirectToDashboard: boolean;
+
 }
 
 export const UserDetailContext = createContext<UserDetailContextType | null>(null);
