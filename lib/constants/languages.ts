@@ -1,0 +1,60 @@
+// Language mapping for Speech Synthesis API
+export const SPEECH_SYNTHESIS_LANGUAGE_MAP: Record<string, string> = {
+  English: "en-US",
+  Spanish: "es-ES",
+  French: "fr-FR",
+  Mandarin: "zh-CN",
+  German: "de-DE",
+  Arabic: "ar-SA",
+  Russian: "ru-RU",
+  Portuguese: "pt-BR",
+  Italian: "it-IT",
+  Japanese: "ja-JP",
+  Hindi: "hi-IN",
+  Bengali: "bn-IN",
+  Tamil: "ta-IN",
+  Telugu: "te-IN",
+  Marathi: "mr-IN",
+  Gujarati: "gu-IN",
+  Kannada: "kn-IN",
+  Malayalam: "ml-IN",
+  Punjabi: "pa-IN",
+  Odia: "or-IN",
+};
+
+// ================= LANGUAGE MAPPINGS =================
+export const LANGUAGE_MAPPINGS: Readonly<Record<string, string>> = {
+  english: "English",
+  spanish: "Spanish (Español)",
+  french: "French (Français)",
+  german: "German (Deutsch)",
+  italian: "Italian (Italiano)",
+  portuguese: "Portuguese (Português)",
+  chinese: "Chinese (中文)",
+  japanese: "Japanese (日本語)",
+  korean: "Korean (한국어)",
+  arabic: "Arabic (العربية)",
+  hindi: "Hindi (हिन्दी)",
+  russian: "Russian (Русский)",
+  dutch: "Dutch (Nederlands)",
+  swedish: "Swedish (Svenska)",
+  norwegian: "Norwegian (Norsk)",
+  danish: "Danish (Dansk)",
+  polish: "Polish (Polski)",
+  turkish: "Turkish (Türkçe)",
+  greek: "Greek (Ελληνικά)",
+  hebrew: "Hebrew (עברית)",
+} as const;
+
+// Languages with limited TTS support
+export const LIMITED_TTS_LANGUAGES = [
+  "Bengali",
+  "Tamil",
+  "Telugu",
+  "Marathi",
+  "Gujarati",
+  "Kannada",
+  "Malayalam",
+  "Punjabi",
+  "Odia",
+];
