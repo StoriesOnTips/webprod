@@ -51,7 +51,6 @@ interface PaymentAuditData {
 }
 
 // ====================== MAIN PAYMENT PROCESSOR ======================
-
 /**
  * Process PayPal payment with retry logic, audit trail, and recovery
  */
@@ -60,44 +59,46 @@ export async function processPayPalPayment(
   packageId: number
 ): Promise<PaymentResult> {
   const requestId = uuidv4().slice(0, 8);
+  let lastError: string = "";
   
+  const { userId } = await auth();
+  
+  if (!userId) {
+    logPaymentEvent(orderID, "AUTH_FAILED", "No user authentication", 1, requestId);
+    return { 
+      success: false, 
+      message: "Authentication required. Please sign in and try again." 
+    };
+  }
+
+  // Check if payment already processed (idempotency protection)
+  const existingPayment = await checkExistingPayment(orderID, userId);
+  if (existingPayment) {
+    logPaymentEvent(orderID, "ALREADY_PROCESSED", 
+      `Payment already completed for user ${userId}`, 1, requestId);
+    
+    return { 
+      success: true, 
+      message: "Payment already processed successfully",
+      newBalance: existingPayment.newBalance,
+      transactionId: existingPayment.transactionId
+    };
+  }
+
+  // Validate package
+  const pkg = CREDIT_PACKAGES[packageId as keyof typeof CREDIT_PACKAGES];
+  if (!pkg) {
+    logPaymentEvent(orderID, "INVALID_PACKAGE", 
+      `Invalid package ID: ${packageId}`, 1, requestId);
+    return { 
+      success: false, 
+      message: "Invalid package selected. Please try again." 
+    };
+  }
+
+  // Process payment with retry logic
   for (let attempt = 1; attempt <= CONFIG.MAX_RETRIES; attempt++) {
     try {
-      const { userId } = await auth();
-      
-      if (!userId) {
-        await logPaymentEvent(orderID, "AUTH_FAILED", "No user authentication", attempt, requestId);
-        return { 
-          success: false, 
-          message: "Authentication required. Please sign in and try again." 
-        };
-      }
-
-      // Check if payment already processed (idempotency protection) - now scoped to user
-      const existingPayment = await checkExistingPayment(orderID, userId);
-      if (existingPayment) {
-        await logPaymentEvent(orderID, "ALREADY_PROCESSED", 
-          `Payment already completed for user ${userId}`, attempt, requestId);
-        
-        return { 
-          success: true, 
-          message: "Payment already processed successfully",
-          newBalance: existingPayment.newBalance,
-          transactionId: existingPayment.transactionId
-        };
-      }
-
-      // Validate package
-      const pkg = CREDIT_PACKAGES[packageId as keyof typeof CREDIT_PACKAGES];
-      if (!pkg) {
-        await logPaymentEvent(orderID, "INVALID_PACKAGE", 
-          `Invalid package ID: ${packageId}`, attempt, requestId);
-        return { 
-          success: false, 
-          message: "Invalid package selected. Please try again." 
-        };
-      }
-
       // Verify payment with PayPal (with timeout protection)
       const paypalResult = await withTimeout(
         verifyPayPalOrder(orderID, requestId),
@@ -106,8 +107,10 @@ export async function processPayPalPayment(
       );
 
       if (!paypalResult.success) {
-        await logPaymentEvent(orderID, "PAYPAL_VERIFICATION_FAILED", 
+        logPaymentEvent(orderID, "PAYPAL_VERIFICATION_FAILED", 
           paypalResult.error || "PayPal verification failed", attempt, requestId);
+        
+        lastError = paypalResult.error || "PayPal verification failed";
         
         // Retry logic for retryable errors
         if (attempt < CONFIG.MAX_RETRIES && paypalResult.retryable) {
@@ -125,8 +128,8 @@ export async function processPayPalPayment(
 
       // Validate payment amount
       if (Math.abs((paypalResult.amount || 0) - pkg.price) > CONFIG.AMOUNT_TOLERANCE) {
-        await logPaymentEvent(orderID, "AMOUNT_MISMATCH", 
-          `Expected: ${pkg.price}, Received: ${paypalResult.amount}`, attempt, requestId);
+        const errorMsg = `Expected: ${pkg.price}, Received: ${paypalResult.amount}`;
+        logPaymentEvent(orderID, "AMOUNT_MISMATCH", errorMsg, attempt, requestId);
         
         return { 
           success: false, 
@@ -146,12 +149,12 @@ export async function processPayPalPayment(
       });
 
       if (result.success) {
-        await logPaymentEvent(orderID, "SUCCESS", 
+        logPaymentEvent(orderID, "SUCCESS", 
           `Successfully added ${pkg.credits} credits to user ${userId}`, attempt, requestId);
 
         // Revalidate relevant pages
         revalidatePath("/dashboard");
-        revalidatePath("/buy-credits");
+        revalidatePath("/buy-coins");
         revalidatePath("/profile");
 
         return {
@@ -166,7 +169,9 @@ export async function processPayPalPayment(
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      await logPaymentEvent(orderID, "PROCESSING_ERROR", errorMsg, attempt, requestId);
+      lastError = errorMsg;
+      
+      logPaymentEvent(orderID, "PROCESSING_ERROR", errorMsg, attempt, requestId);
       
       console.error(`Payment attempt ${attempt}/${CONFIG.MAX_RETRIES} failed:`, {
         orderID,
@@ -202,6 +207,7 @@ export async function processPayPalPayment(
   return { 
     success: false, 
     message: "Payment failed after multiple attempts. Please contact support if this continues.",
+    error: lastError,
     canRetry: false 
   };
 }
@@ -503,15 +509,15 @@ async function checkExistingPayment(orderID: string, userId: string): Promise<{
 }
 
 /**
- * Log payment events for audit trail
+ * Log payment events for audit trail - Made synchronous to avoid await in loops
  */
-async function logPaymentEvent(
+function logPaymentEvent(
   orderID: string, 
   status: string, 
   message: string, 
   attempt: number,
   requestId: string
-): Promise<void> {
+): void {
   try {
     console.log(`Payment ${orderID} [${requestId}] - Attempt ${attempt}: ${status} - ${message}`, {
       orderID,
@@ -521,9 +527,6 @@ async function logPaymentEvent(
       requestId,
       timestamp: new Date().toISOString()
     });
-    
-    // Could also store in a dedicated logging table if needed
-    
   } catch (error) {
     // Fail silently for logging to not interrupt payment flow
     console.error("Logging error:", error);
@@ -588,38 +591,46 @@ export async function recoverMissingCredits(): Promise<PaymentResult> {
 
     let totalRecovered = 0;
     
-    for (const transaction of missingCredits) {
-      const payload = transaction.rawPayload as any;
-      const credits = payload?.credits || 0;
+    // Process all transactions in batch instead of loop with awaits
+    const creditUpdates = missingCredits
+      .map(transaction => {
+        const payload = transaction.rawPayload as any;
+        const credits = payload?.credits || 0;
+        return { transaction, credits };
+      })
+      .filter(({ credits }) => credits > 0);
+
+    if (creditUpdates.length > 0) {
+      // Calculate total credits to recover
+      totalRecovered = creditUpdates.reduce((sum, { credits }) => sum + credits, 0);
       
-      if (credits > 0) {
-        // Add the missing credits
-        await db
+      // Execute all operations in a single transaction
+      await db.transaction(async (tx) => {
+        // Update user credits in one operation
+        await tx
           .update(Users)
           .set({
-            credits: sql`${Users.credits} + ${credits}`,
+            credits: sql`${Users.credits} + ${totalRecovered}`,
             updatedAt: new Date(),
           })
           .where(eq(Users.clerkUserId, userId));
         
-        // Log recovery
-        await db
-          .insert(PaymentAuditLog)
-          .values({
-            transactionId: transaction.id,
-            previousStatus: "COMPLETED",
-            newStatus: "CREDITS_RECOVERED",
-            changedBy: "recovery_system",
-            reason: `Recovered ${credits} missing credits`,
-          });
+        // Insert all audit logs in batch
+        const auditLogs = creditUpdates.map(({ transaction, credits }) => ({
+          transactionId: transaction.id,
+          previousStatus: "COMPLETED" as const,
+          newStatus: "CREDITS_RECOVERED" as const,
+          changedBy: "recovery_system",
+          reason: `Recovered ${credits} missing credits`,
+        }));
         
-        totalRecovered += credits;
-      }
-    }
+        if (auditLogs.length > 0) {
+          await tx.insert(PaymentAuditLog).values(auditLogs);
+        }
+      });
 
-    if (totalRecovered > 0) {
       revalidatePath("/dashboard");
-      revalidatePath("/buy-credits");
+      revalidatePath("/buy-coins");
       
       // Get the actual user balance after recovery
       const [userAfter] = await db

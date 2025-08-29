@@ -29,6 +29,15 @@ import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// Define SpeechSynthesisVoice type for TypeScript compatibility
+interface SpeechSynthesisVoice {
+  voiceURI: string;
+  name: string;
+  lang: string;
+  localService: boolean;
+  default: boolean;
+}
+
 interface DifficultWord {
   word: string;
   meaning: string;
@@ -379,7 +388,6 @@ export default function DifficultWordsClient({
   }, []);
 
   // Export functionality
-
   const exportWords = useCallback(() => {
     const wordsToExport = showFavoritesOnly
       ? processedWords.filter((word) => favoriteWords.has(word.word))
@@ -501,7 +509,7 @@ export default function DifficultWordsClient({
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search Input */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
               type="text"
@@ -515,9 +523,9 @@ export default function DifficultWordsClient({
                 variant="ghost"
                 size="sm"
                 onClick={clearSearch}
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 size-6 p-0"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </Button>
             )}
           </div>
@@ -541,9 +549,9 @@ export default function DifficultWordsClient({
               className="gap-2 bg-transparent"
             >
               {sortOrder === "asc" ? (
-                <SortAsc className="h-4 w-4" />
+                <SortAsc className="size-4" />
               ) : (
-                <SortDesc className="h-4 w-4" />
+                <SortDesc className="size-4" />
               )}
               {sortOrder === "asc" ? "A-Z" : "Z-A"}
             </Button>
@@ -554,7 +562,7 @@ export default function DifficultWordsClient({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="gap-1">
-              <BookOpen className="h-3 w-3" />
+              <BookOpen className="size-3" />
               {processedWords.length}{" "}
               {processedWords.length === 1 ? "word" : "words"}
             </Badge>
@@ -566,7 +574,7 @@ export default function DifficultWordsClient({
               className="gap-1"
             >
               <Star
-                className={`h-3 w-3 ${showFavoritesOnly ? "fill-current" : ""}`}
+                className={`size-3 ${showFavoritesOnly ? "fill-current" : ""}`}
               />
               Favorites ({favoriteWords.size})
             </Button>
@@ -578,7 +586,7 @@ export default function DifficultWordsClient({
                 onClick={clearSearch}
                 className="gap-1"
               >
-                <X className="h-3 w-3" />
+                <X className="size-3" />
                 Clear
               </Button>
             )}
@@ -588,12 +596,12 @@ export default function DifficultWordsClient({
             {/* Speech Status */}
             {!speechSupported ? (
               <Badge variant="destructive" className="gap-1">
-                <VolumeX className="h-3 w-3" />
+                <VolumeX className="size-3" />
                 No Speech Support
               </Badge>
             ) : (
               <Badge variant="outline" className="gap-1">
-                <Volume2 className="h-3 w-3" />
+                <Volume2 className="size-3" />
                 Speech Ready
               </Badge>
             )}
@@ -604,7 +612,7 @@ export default function DifficultWordsClient({
               onClick={exportWords}
               className="gap-1 bg-transparent"
             >
-              <Download className="h-3 w-3" />
+              <Download className="size-3" />
               Export
             </Button>
 
@@ -614,7 +622,7 @@ export default function DifficultWordsClient({
               onClick={shareVocabulary}
               className="gap-1 bg-transparent"
             >
-              <Share2 className="h-3 w-3" />
+              <Share2 className="size-3" />
               Share
             </Button>
           </div>
@@ -625,7 +633,7 @@ export default function DifficultWordsClient({
           <Card className="bg-muted/20 border-border">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Settings className="h-4 w-4" />
+                <Settings className="size-4" />
                 <span className="text-sm font-medium">Voice Settings</span>
               </div>
 
@@ -767,7 +775,7 @@ export default function DifficultWordsClient({
 
                         {word.pronunciation && (
                           <Badge variant="secondary" className="text-xs gap-1">
-                            <Volume2 className="h-3 w-3" />
+                            <Volume2 className="size-3" />
                             {word.pronunciation}
                           </Badge>
                         )}
@@ -779,7 +787,7 @@ export default function DifficultWordsClient({
                           variant="ghost"
                           size="sm"
                           onClick={() => toggleFavorite(word.word)}
-                          className="h-8 w-8 p-0"
+                          className="size-8 p-0"
                           title={
                             isFavorited
                               ? "Remove from favorites"
@@ -787,9 +795,9 @@ export default function DifficultWordsClient({
                           }
                         >
                           {isFavorited ? (
-                            <Star className="h-4 w-4 fill-current text-yellow-500" />
+                            <Star className="size-4 fill-current text-yellow-500" />
                           ) : (
-                            <StarOff className="h-4 w-4" />
+                            <StarOff className="size-4" />
                           )}
                         </Button>
 
@@ -798,17 +806,17 @@ export default function DifficultWordsClient({
                           size="sm"
                           onClick={() => speakWord(word.word)}
                           disabled={isLoading || !speechSupported}
-                          className="h-8 w-8 p-0"
+                          className="size-8 p-0"
                           title="Pronounce word"
                         >
                           {isLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="size-4 animate-spin" />
                           ) : isPlaying ? (
-                            <Pause className="h-4 w-4 text-green-500" />
+                            <Pause className="size-4 text-green-500" />
                           ) : !speechSupported ? (
-                            <VolumeX className="h-4 w-4 text-muted-foreground" />
+                            <VolumeX className="size-4 text-muted-foreground" />
                           ) : (
-                            <Play className="h-4 w-4" />
+                            <Play className="size-4" />
                           )}
                         </Button>
 
@@ -816,13 +824,13 @@ export default function DifficultWordsClient({
                           variant="ghost"
                           size="sm"
                           onClick={() => copyWord(word.word)}
-                          className="h-8 w-8 p-0"
+                          className="size-8 p-0"
                           title="Copy word"
                         >
                           {isCopied ? (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <CheckCircle className="size-4 text-green-500" />
                           ) : (
-                            <Copy className="h-4 w-4" />
+                            <Copy className="size-4" />
                           )}
                         </Button>
                       </div>
@@ -836,9 +844,9 @@ export default function DifficultWordsClient({
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-4">
               {showFavoritesOnly ? (
-                <Star className="h-12 w-12 text-muted-foreground opacity-50" />
+                <Star className="size-12 text-muted-foreground opacity-50" />
               ) : (
-                <Search className="h-12 w-12 text-muted-foreground opacity-50" />
+                <Search className="size-12 text-muted-foreground opacity-50" />
               )}
             </div>
 
@@ -862,7 +870,7 @@ export default function DifficultWordsClient({
                     onClick={clearSearch}
                     className="gap-1 bg-transparent"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                     Clear search
                   </Button>
                 )}
@@ -873,7 +881,7 @@ export default function DifficultWordsClient({
                     onClick={toggleShowFavorites}
                     className="gap-1 bg-transparent"
                   >
-                    <BookOpen className="h-4 w-4" />
+                    <BookOpen className="size-4" />
                     Show all words
                   </Button>
                 )}
@@ -900,35 +908,6 @@ export default function DifficultWordsClient({
                   words for review, and practice using them in your own
                   sentences. Regular review is key to retention!
                 </p>
-              </CardContent>
-            </Card>
-
-            {/* Keyboard Shortcuts */}
-            <Card className="bg-secondary/5 border-secondary/20">
-              <CardContent className="p-4">
-                <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                  ⌨️ Shortcuts
-                </h4>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <div>
-                    <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-                      Ctrl+F
-                    </kbd>{" "}
-                    Focus search
-                  </div>
-                  <div>
-                    <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-                      Ctrl+K
-                    </kbd>{" "}
-                    Clear search
-                  </div>
-                  <div>
-                    <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-                      Esc
-                    </kbd>{" "}
-                    Stop speech
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>

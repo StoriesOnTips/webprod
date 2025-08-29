@@ -160,9 +160,7 @@ export default function SignUpForm({ className, ...props }: SignUpFormProps) {
                   </div>
                   <div
                     id="clerk-captcha"
-                    data-cl-theme="dark"
                     data-cl-size="flexible"
-                    data-cl-language="es-ES"
                   />
                   <Button type="submit" className="w-full">
                     Continue

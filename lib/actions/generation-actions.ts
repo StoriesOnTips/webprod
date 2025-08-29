@@ -133,7 +133,7 @@ async function withTimeout<T>(
   timeoutMs: number,
   operationName: string
 ): Promise<T> {
-  let timeoutId: NodeJS.Timeout;
+  let timeoutId: ReturnType<typeof setTimeout>;
   
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -720,9 +720,9 @@ async function deductCreditAndSaveStory(
     async () => {
       const operation = async (): Promise<{ storyId: string; creditsRemaining: number }> => {
         try {
-          // Use proper database transaction
-          return await db.transaction(async (tx) => {
-            // Deduct credit within transaction
+          // Use a single atomic transaction to ensure consistency
+          const result = await db.transaction(async (tx) => {
+            // 1. First, atomically decrement user's credits with validation
             const deductResult = await tx
               .update(Users)
               .set({
@@ -733,6 +733,22 @@ async function deductCreditAndSaveStory(
               .returning({ credits: Users.credits });
             
             if (!deductResult || deductResult.length === 0) {
+              // Check if user exists but has insufficient credits
+              const userCheck = await tx
+                .select({ credits: Users.credits })
+                .from(Users)
+                .where(eq(Users.clerkUserId, userId))
+                .limit(1);
+              
+              if (!userCheck || userCheck.length === 0) {
+                throw new APIError(
+                  "User not found",
+                  404,
+                  "USER_NOT_FOUND",
+                  { userId: userId.substring(0, 8) }
+                );
+              }
+              
               throw new APIError(
                 "Insufficient credits. Please purchase more credits to continue.",
                 403,
@@ -741,29 +757,47 @@ async function deductCreditAndSaveStory(
               );
             }
             
-            const newBalance = deductResult[0].credits;
-            
-            // Save story within same transaction
-            const storyResult = await tx
-              .insert(StoryData)
-              .values(storyData)
-              .returning({ storyId: StoryData.storyId });
-            
-            if (!storyResult || storyResult.length === 0) {
-              // Transaction will automatically rollback
-              throw new APIError(
-                "Failed to save story to database",
-                500,
-                "STORY_SAVE_FAILED",
-                { userId: userId.substring(0, 8) }
-              );
+            // 2. Insert story with idempotent operation - try insert first, handle conflict if needed
+            let storyId: string;
+            try {
+              const storyResult = await tx
+                .insert(StoryData)
+                .values(storyData)
+                .returning({ storyId: StoryData.storyId });
+              
+              storyId = storyResult[0].storyId;
+            } catch (insertError: any) {
+              // If insert fails due to unique constraint violation, get the existing storyId
+              if (insertError.message?.includes('duplicate key') || insertError.code === '23505') {
+                const existingStory = await tx
+                  .select({ storyId: StoryData.storyId })
+                  .from(StoryData)
+                  .where(eq(StoryData.storyId, storyData.storyId))
+                  .limit(1);
+                
+                if (!existingStory || existingStory.length === 0) {
+                  throw new APIError(
+                    "Failed to save story to database",
+                    500,
+                    "STORY_SAVE_FAILED",
+                    { userId: userId.substring(0, 8) }
+                  );
+                }
+                
+                storyId = existingStory[0].storyId;
+              } else {
+                // Re-throw if it's not a duplicate key error
+                throw insertError;
+              }
             }
             
             return {
-              storyId: storyResult[0].storyId,
-              creditsRemaining: newBalance,
+              storyId,
+              creditsRemaining: deductResult[0].credits,
             };
           });
+          
+          return result;
         } catch (error: any) {
           if (error instanceof APIError) throw error;
           
@@ -1073,8 +1107,6 @@ export async function generateStoryAction(
 ): Promise<StoryGenerationState> {
   const startTime = Date.now();
   const requestId = uuidv4().slice(0, 8);
-  
-  console.log("Story generation action started");
 
   try {
     // Authentication
@@ -1299,8 +1331,8 @@ export async function getUserStoryHistory(): Promise<{
 
     const languageBreakdown: Record<string, number> = {};
     dashboardData.storiesByLanguage.forEach((lang) => {
-      if (lang.language2) {
-        languageBreakdown[lang.language2] = lang.count;
+      if (lang.language) {
+        languageBreakdown[lang.language] = lang.count;
       }
     });
 

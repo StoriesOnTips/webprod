@@ -44,7 +44,7 @@ export default function StoryHeaderInfo() {
       return story.output.bookTitle;
     }
     return (
-      story.output?.bookTitle?.[story.language1] ||
+      story.output?.bookTitle?.language1 ||
       Object.values(story.output?.bookTitle || {})[0] ||
       "Story"
     );

@@ -75,10 +75,10 @@ export default async function VocabularyPage({
       {/* Page Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <BookMarked className="h-6 w-6 text-blue-500" />
+          <BookMarked className="size-6 text-blue-500" />
           <h1 className="text-2xl font-bold">Vocabulary Builder</h1>
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="h-3 w-3" />
+            <Sparkles className="size-3" />
             Learning
           </Badge>
         </div>
@@ -94,7 +94,7 @@ export default async function VocabularyPage({
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-blue-500" />
+              <Target className="size-4 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Total Words</p>
                 <p className="text-2xl font-bold">{totalWords}</p>
@@ -106,7 +106,7 @@ export default async function VocabularyPage({
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <BookMarked className="h-4 w-4 text-green-500" />
+              <BookMarked className="size-4 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Chapters</p>
                 <p className="text-2xl font-bold">{chaptersWithWords}</p>
@@ -182,7 +182,7 @@ export default async function VocabularyPage({
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-            <Target className="h-5 w-5" />
+            <Target className="size-5" />
             Vocabulary Learning Strategies
           </CardTitle>
         </CardHeader>

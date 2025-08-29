@@ -68,13 +68,13 @@ export default function MoralSection({
       <Card className="bg-card border-border backdrop-blur-sm shadow-lg mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
-            <Heart className="h-5 w-5 text-destructive" />
+            <Heart className="size-5 text-destructive" />
             Story Message
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <BookOpen className="h-16 w-16 mb-4 opacity-50" />
+            <BookOpen className="size-16 mb-4 opacity-50" />
             <h3 className="text-xl font-medium text-foreground mb-2">
               No moral available
             </h3>
@@ -93,27 +93,19 @@ export default function MoralSection({
       <CardHeader>
         <div className="text-center">
           <CardTitle className="flex items-center justify-center gap-2 text-foreground text-2xl md:text-3xl font-bold">
-            <Heart className="h-6 w-6 text-destructive" />
+            <Heart className="size-6 text-destructive" />
             <span className="bg-gradient-to-r from-destructive to-primary bg-clip-text text-transparent">
               Moral of the Story
             </span>
           </CardTitle>
           <p className="text-muted-foreground mt-2 flex items-center justify-center gap-2">
-            <BookOpen className="h-4 w-4" />
+            <BookOpen className="size-4" />
             Every story teaches us something valuable
           </p>
         </div>
       </CardHeader>
       <CardContent>
         <div className="relative">
-          {/* Background decoration */}
-          <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-primary/5 rounded-xl" />
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-destructive/40 to-primary/40 rounded-t-xl" />
-
-          {/* Quote icons */}
-          <Quote className="absolute top-4 left-4 h-8 w-8 text-muted-foreground opacity-30" />
-          <Quote className="absolute bottom-4 right-4 h-8 w-8 text-muted-foreground opacity-30 rotate-180" />
-
           {/* Content */}
           <div className="relative p-8 md:p-12">
             <blockquote className="text-lg md:text-xl font-medium text-center leading-relaxed text-foreground select-all italic">

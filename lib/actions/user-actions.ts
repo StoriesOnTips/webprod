@@ -10,9 +10,12 @@ import { hashEmail } from "@/lib/utils";
 
 // Input validation schema
 const UserDataSchema = z.object({
-  userEmail: z.string().email("Invalid email format"),
+  userEmail: z.string().min(1, "Email is required").email("Invalid email format"),
   userName: z.string().min(1, "Username is required").max(100, "Username too long"),
-  userImage: z.string().url().optional().nullable().transform(val => val === "" ? null : val),
+  userImage: z.preprocess(
+    (val) => val === "" ? null : val,
+    z.string().url("Invalid URL format").optional().nullable()
+  ),
 });
 
 // Response types

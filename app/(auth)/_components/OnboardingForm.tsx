@@ -151,7 +151,7 @@ export default function OnboardingForm({ userId }: OnboardingFormProps) {
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 bg-background">
             <div className="text-center mb-6">
               <h2 className="text-2xl font-bold text-foreground mb-2">Personal Information</h2>
               <p className="text-muted-foreground">Tell us about yourself</p>

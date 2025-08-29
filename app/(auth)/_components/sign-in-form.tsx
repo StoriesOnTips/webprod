@@ -111,13 +111,8 @@ export default function SignInForm({ className, ...props }: SignInFormProps) {
                   required
                 />
               </div>
-              {/* Captcha is disabled for now - can be enabled via feature flag */}
-              {/* <div
-                id="clerk-captcha"
-                data-cl-theme="light"
-                data-cl-size="flexible"
-                data-cl-language="en"
-              /> */}
+     
+               <div id="clerk-captcha" data-cl-size="flexible"/>
               <Button type="submit" className="w-full" disabled={!isLoaded || loading}>
                 {loading ? (
                   <>

@@ -39,7 +39,7 @@ export async function generateMetadata({
   const bookTitle =
     typeof story.output.bookTitle === "string"
       ? story.output.bookTitle
-      : story.output.bookTitle[story.language1] ||
+      : story.output.bookTitle.language1 ||
         Object.values(story.output.bookTitle)[0];
 
   return {
@@ -76,10 +76,10 @@ export default async function AudioPage({ params }: AudioPageProps) {
       {/* Page Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Headphones className="h-6 w-6 text-green-500" />
+          <Headphones className="size-6 text-green-500" />
           <h1 className="text-2xl font-bold">Audio Controls</h1>
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="h-3 w-3" />
+            <Sparkles className="size-3" />
             Speech Synthesis
           </Badge>
         </div>
@@ -102,9 +102,9 @@ export default async function AudioPage({ params }: AudioPageProps) {
           <CardContent>
             <div className="flex items-center gap-2 mb-3">
               {lang1HasTTS ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="size-5 text-green-500" />
               ) : (
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                <AlertTriangle className="size-5 text-amber-500" />
               )}
               <span className="font-medium">
                 {lang1HasTTS ? "Fully Supported" : "Limited Support"}
@@ -136,9 +136,9 @@ export default async function AudioPage({ params }: AudioPageProps) {
           <CardContent>
             <div className="flex items-center gap-2 mb-3">
               {lang2HasTTS ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="size-5 text-green-500" />
               ) : (
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                <AlertTriangle className="size-5 text-amber-500" />
               )}
               <span className="font-medium">
                 {lang2HasTTS ? "Fully Supported" : "Limited Support"}
@@ -164,7 +164,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
       {/* Warning for Limited Support */}
       {hasLimitedTTS && (
         <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTriangle className="size-4 text-amber-600" />
           <AlertDescription className="text-amber-800 dark:text-amber-200">
             <strong>Limited TTS Support:</strong> Some audio features may not
             work properly for {!lang1HasTTS && story.language1}
@@ -179,7 +179,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Volume2 className="h-5 w-5" />
+            <Volume2 className="size-5" />
             Available Audio Features
           </CardTitle>
         </CardHeader>
@@ -187,7 +187,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+                <CheckCircle className="size-4 text-green-500" />
                 <span className="font-medium">Story Narration</span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -198,7 +198,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+                <CheckCircle className="size-4 text-green-500" />
                 <span className="font-medium">Vocabulary Pronunciation</span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -220,7 +220,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Settings className="h-4 w-4 text-blue-500" />
+                <Settings className="size-4 text-blue-500" />
                 <span className="font-medium">Voice Controls</span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -231,7 +231,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Settings className="h-4 w-4 text-blue-500" />
+                <Settings className="size-4 text-blue-500" />
                 <span className="font-medium">Language Switching</span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -242,7 +242,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Settings className="h-4 w-4 text-blue-500" />
+                <Settings className="size-4 text-blue-500" />
                 <span className="font-medium">Keyboard Shortcuts</span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -301,7 +301,7 @@ export default async function AudioPage({ params }: AudioPageProps) {
       <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
-            <Headphones className="h-5 w-5" />
+            <Headphones className="size-5" />
             Tips for Better Audio Experience
           </CardTitle>
         </CardHeader>

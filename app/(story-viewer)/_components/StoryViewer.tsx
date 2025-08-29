@@ -24,6 +24,15 @@ import Image from "next/image";
 import { toast } from "sonner";
 import type { StoryWithMetadata } from "@/lib/actions/story-actions";
 
+// Define SpeechSynthesisVoice type for TypeScript compatibility
+interface SpeechSynthesisVoice {
+  voiceURI: string;
+  name: string;
+  lang: string;
+  localService: boolean;
+  default: boolean;
+}
+
 interface StoryViewerProps {
   story: StoryWithMetadata;
   preferredLanguage?: string;
@@ -408,13 +417,13 @@ export default function StoryViewer({
         className="gap-2"
       >
         {isCurrentlyLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="size-4 animate-spin" />
         ) : isCurrentlyPlaying ? (
-          <Pause className="h-4 w-4" />
+          <Pause className="size-4" />
         ) : !speechSupported || !hasSupport ? (
-          <VolumeX className="h-4 w-4" />
+          <VolumeX className="size-4" />
         ) : (
-          <Play className="h-4 w-4" />
+          <Play className="size-4" />
         )}
         Listen in {language}
         {!hasSupport && " (Unavailable)"}
@@ -446,8 +455,8 @@ export default function StoryViewer({
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center border-2 border-border">
-              <BookOpen className="h-24 w-24 text-muted-foreground/50" />
+            <div className="size-full bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center border-2 border-border">
+              <BookOpen className="size-24 text-muted-foreground/50" />
             </div>
           )}
         </div>
@@ -467,7 +476,7 @@ export default function StoryViewer({
           <Badge variant="secondary">{story.genre}</Badge>
           <Badge variant="secondary">{story.ageGroup}</Badge>
           <Badge variant="outline" className="gap-1">
-            <Languages className="h-3 w-3" />
+            <Languages className="size-3" />
             {language1} → {language2}
           </Badge>
         </div>
@@ -481,9 +490,9 @@ export default function StoryViewer({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowSettings(!showSettings)}
-                className="h-6 w-6 p-0"
+                className="size-6 p-0"
               >
-                <Settings className="h-3 w-3" />
+                <Settings className="size-3" />
               </Button>
             )}
           </div>
@@ -503,7 +512,7 @@ export default function StoryViewer({
                       }
                       className="h-6 text-xs"
                     >
-                      <RotateCcw className="h-3 w-3 mr-1" />
+                      <RotateCcw className="size-3 mr-1" />
                       Reset
                     </Button>
                   </div>
@@ -589,11 +598,11 @@ export default function StoryViewer({
           <Tabs defaultValue={language1} className="w-full max-w-md">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value={language1} className="gap-2">
-                <Languages className="h-3 w-3" />
+                <Languages className="size-3" />
                 {language1}
               </TabsTrigger>
               <TabsTrigger value={language2} className="gap-2">
-                <Languages className="h-3 w-3" />
+                <Languages className="size-3" />
                 {language2}
               </TabsTrigger>
             </TabsList>
@@ -643,12 +652,12 @@ export default function StoryViewer({
         {/* Language 1 Content */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-4">
-            <Languages className="h-5 w-5 text-primary" />
+            <Languages className="size-5 text-primary" />
             <h3 className="text-lg font-semibold text-foreground">
               {language1}
             </h3>
             <div
-              className={`w-2 h-2 rounded-full ${hasLanguageSupport(language1) ? "bg-green-500" : "bg-amber-500"
+              className={`size-2 rounded-full ${hasLanguageSupport(language1) ? "bg-green-500" : "bg-amber-500"
                 }`}
             />
           </div>
@@ -660,7 +669,7 @@ export default function StoryViewer({
           </div>
 
           <div className="flex items-center gap-2 pb-4">
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <Volume2 className="size-4 text-muted-foreground" />
             {renderAudioButton(
               `${titleLang1}. ${textLang1}`,
               currentPage,
@@ -679,12 +688,12 @@ export default function StoryViewer({
         {/* Language 2 Content */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-4">
-            <Languages className="h-5 w-5 text-secondary" />
+            <Languages className="size-5 text-secondary" />
             <h3 className="text-lg font-semibold text-foreground">
               {language2}
             </h3>
             <div
-              className={`w-2 h-2 rounded-full ${hasLanguageSupport(language2) ? "bg-green-500" : "bg-amber-500"
+              className={`size-2 rounded-full ${hasLanguageSupport(language2) ? "bg-green-500" : "bg-amber-500"
                 }`}
             />
           </div>
@@ -696,7 +705,7 @@ export default function StoryViewer({
           </div>
 
           <div className="flex items-center gap-2 pb-4">
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <Volume2 className="size-4 text-muted-foreground" />
             {renderAudioButton(
               `${titleLang2}. ${textLang2}`,
               currentPage,
@@ -714,7 +723,7 @@ export default function StoryViewer({
         {chapter.difficultWords && chapter.difficultWords.length > 0 && (
           <div className="space-y-4 border-t border-border pt-6">
             <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
+              <BookOpen className="size-5" />
               Key Vocabulary
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -765,14 +774,14 @@ export default function StoryViewer({
                             }
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0"
+                            className="size-6 p-0"
                             title="Pronounce word"
                           >
                             {!speechSupported ||
                               !hasLanguageSupport(wordLang) ? (
-                              <VolumeX className="h-3 w-3" />
+                              <VolumeX className="size-3" />
                             ) : (
-                              <Volume2 className="h-3 w-3" />
+                              <Volume2 className="size-3" />
                             )}
                           </Button>
                         );
@@ -790,18 +799,9 @@ export default function StoryViewer({
 
   // Final Page
   const renderFinalPage = () => {
-    const moralLang1 = getText(
-      story.output.moralOfTheStory?.moral ?? "No moral for this story",
-      language1
-    );
-    const moralLang2 = getText(
-      story.output.moralOfTheStory?.moral ?? "No moral for this story",
-      language2
-    );
-
     return (
       <div className="flex flex-col items-center justify-center min-h-[600px] text-center space-y-6">
-        <Heart className="h-16 w-16 text-primary animate-pulse" />
+        <Heart className="size-16 text-primary animate-pulse" />
 
         <h2 className="text-3xl font-bold text-foreground">The End</h2>
 
@@ -871,7 +871,7 @@ export default function StoryViewer({
         <Card className="bg-destructive/10 border-destructive/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-destructive">
-              <VolumeX className="h-4 w-4" />
+              <VolumeX className="size-4" />
               <span className="text-sm font-medium">
                 {!speechSupported
                   ? "Speech synthesis is not supported in this browser"
@@ -908,7 +908,7 @@ export default function StoryViewer({
                 variant="outline"
                 className="gap-2 bg-transparent"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="size-4" />
                 Previous
               </Button>
 
@@ -930,7 +930,7 @@ export default function StoryViewer({
                         setCurrentPage(i);
                         stopSpeech();
                       }}
-                      className={`w-2 h-2 rounded-full transition-colors ${i === currentPage
+                      className={`size-2 rounded-full transition-colors ${i === currentPage
                           ? "bg-primary"
                           : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
                         }`}
@@ -951,7 +951,7 @@ export default function StoryViewer({
                 className="gap-2 bg-transparent"
               >
                 Next
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="size-4" />
               </Button>
             </div>
 
@@ -960,17 +960,17 @@ export default function StoryViewer({
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {audioState.isPlaying ? (
                   <>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <div className="size-2 bg-green-500 rounded-full animate-pulse" />
                     <span>Playing in {audioState.currentLanguage}</span>
                   </>
                 ) : audioState.isLoading ? (
                   <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <Loader2 className="size-3 animate-spin" />
                     <span>Loading...</span>
                   </>
                 ) : speechSupported ? (
                   <>
-                    <Volume2 className="h-3 w-3" />
+                    <Volume2 className="size-3" />
                     <span>Speech Ready</span>
                     {hasLimitedTTS && (
                       <Badge variant="outline" className="text-xs ml-2">
@@ -980,7 +980,7 @@ export default function StoryViewer({
                   </>
                 ) : (
                   <>
-                    <VolumeX className="h-3 w-3" />
+                    <VolumeX className="size-3" />
                     <span>No Speech Support</span>
                   </>
                 )}
@@ -994,22 +994,10 @@ export default function StoryViewer({
                   size="sm"
                   className="gap-1 bg-transparent"
                 >
-                  <Pause className="h-3 w-3" />
+                  <Pause className="size-3" />
                   Stop
                 </Button>
               )}
-
-              {/* Keyboard Shortcuts */}
-              <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground">
-                <kbd className="px-1 py-0.5 bg-muted rounded text-xs">←→</kbd>
-                <span>Navigate</span>
-                <kbd className="px-1 py-0.5 bg-muted rounded text-xs">
-                  Space
-                </kbd>
-                <span>Play</span>
-                <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd>
-                <span>Stop</span>
-              </div>
             </div>
           </div>
         </CardContent>

@@ -133,7 +133,7 @@ function getVocabularyStats(words: DifficultWord[]) {
   const chaptersWithWords = new Set(
     words
       .map((w) => w.chapter)
-      .filter((chapter): chapter is number => chapter != null)
+      .filter((chapter): chapter is number => typeof chapter === "number")
   ).size
   const wordsWithPronunciation = words.filter((w) => w.pronunciation).length
   const avgWordsPerChapter = chaptersWithWords > 0 ? Math.round(totalWords / chaptersWithWords) : 0
@@ -183,15 +183,15 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
       <Card className="bg-card border-border backdrop-blur-sm shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2 text-foreground">
-            <BookOpen className="h-5 w-5 text-primary" />
+            <BookOpen className="size-5 text-primary" />
             Vocabulary Builder
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-6 relative">
-              <BookOpen className="h-16 w-16 text-muted-foreground/30" />
-              <Sparkles className="h-6 w-6 text-primary/50 absolute -top-1 -right-1 animate-pulse" />
+              <BookOpen className="size-16 text-muted-foreground/30" />
+              <Sparkles className="size-6 text-primary/50 absolute -top-1 -right-1 animate-pulse" />
             </div>
 
             <h3 className="text-xl font-semibold text-foreground mb-2">No vocabulary words available</h3>
@@ -236,9 +236,9 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="space-y-2">
             <CardTitle className="flex items-center gap-2 text-foreground">
-              <GraduationCap className="h-6 w-6 text-primary" />
+              <GraduationCap className="size-6 text-primary" />
               Vocabulary Builder
-              <Sparkles className="h-4 w-4 text-primary/70 animate-pulse" />
+              <Sparkles className="size-4 text-primary/70 animate-pulse" />
             </CardTitle>
 
             <p className="text-muted-foreground text-sm">Master new words from your language learning journey</p>
@@ -246,7 +246,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
 
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="secondary" className="gap-1">
-              <BookOpen className="h-3 w-3" />
+              <BookOpen className="size-3" />
               {stats.totalWords} words
             </Badge>
 
@@ -267,7 +267,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
 
             <div className="flex items-center gap-2 text-primary">
               <div className="w-8 h-0.5 bg-primary/30"></div>
-              <Languages className="h-5 w-5" />
+              <Languages className="size-5" />
               <div className="w-8 h-0.5 bg-primary/30"></div>
             </div>
 
@@ -290,7 +290,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-3 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <Target className="h-4 w-4 text-primary" />
+                <Target className="size-4 text-primary" />
                 <span className="text-xl font-bold text-primary">{stats.totalWords}</span>
               </div>
               <div className="text-xs text-muted-foreground">Total Words</div>
@@ -300,7 +300,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
           <Card className="bg-secondary/5 border-secondary/20">
             <CardContent className="p-3 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <BookOpen className="h-4 w-4 text-secondary-foreground" />
+                <BookOpen className="size-4 text-secondary-foreground" />
                 <span className="text-xl font-bold text-secondary-foreground">{stats.chaptersWithWords}</span>
               </div>
               <div className="text-xs text-muted-foreground">Chapters</div>
@@ -310,7 +310,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
           <Card className="bg-accent/5 border-accent/20">
             <CardContent className="p-3 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <TrendingUp className="h-4 w-4 text-accent-foreground" />
+                <TrendingUp className="size-4 text-accent-foreground" />
                 <span className="text-xl font-bold text-accent-foreground">{stats.avgWordsPerChapter}</span>
               </div>
               <div className="text-xs text-muted-foreground">Avg/Chapter</div>
@@ -320,7 +320,7 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
           <Card className="bg-green-500/5 border-green-500/20">
             <CardContent className="p-3 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <Languages className="h-4 w-4 text-green-600" />
+                <Languages className="size-4 text-green-600" />
                 <span className="text-xl font-bold text-green-600">{stats.wordsWithPronunciation}</span>
               </div>
               <div className="text-xs text-muted-foreground">With Audio</div>
@@ -336,32 +336,32 @@ export default function DifficultWordsSection({ chapters, language1, language2 }
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="size-2 bg-green-500 rounded-full"></div>
               <span className="text-muted-foreground">AI-powered pronunciation</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className="size-2 bg-blue-500 rounded-full"></div>
               <span className="text-muted-foreground">Smart search & filtering</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+              <div className="size-2 bg-purple-500 rounded-full"></div>
               <span className="text-muted-foreground">Favorite words tracking</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <div className="size-2 bg-orange-500 rounded-full"></div>
               <span className="text-muted-foreground">Chapter-based organization</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+              <div className="size-2 bg-pink-500 rounded-full"></div>
               <span className="text-muted-foreground">Export & sharing tools</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+              <div className="size-2 bg-teal-500 rounded-full"></div>
               <span className="text-muted-foreground">Progress tracking</span>
             </div>
           </div>

@@ -14,7 +14,6 @@ interface StoryStatsProps {
 
 export default function StoryStats({
   chaptersCount,
-  currentProgress,
   language1,
   language2,
   genre,
@@ -25,7 +24,7 @@ export default function StoryStats({
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary" />
+            <BookOpen className="size-4 text-primary" />
             <div>
               <p className="text-sm text-muted-foreground">Chapters</p>
               <p className="text-2xl font-bold">{chaptersCount}</p>

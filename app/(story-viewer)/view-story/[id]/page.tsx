@@ -142,7 +142,7 @@ export default async function ViewStoryPage({
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
+            <BookOpen className="size-5" />
             Interactive Story Reader
           </CardTitle>
         </CardHeader>

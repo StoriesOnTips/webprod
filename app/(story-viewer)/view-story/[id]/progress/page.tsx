@@ -41,7 +41,7 @@ export async function generateMetadata({
   const bookTitle =
     typeof story.output.bookTitle === "string"
       ? story.output.bookTitle
-      : story.output.bookTitle[story.language1] ||
+      : story.output.bookTitle.language1 ||
         Object.values(story.output.bookTitle)[0];
 
   return {
@@ -70,7 +70,7 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
 
   // Calculate vocabulary stats
   const totalWords =
-    story.output.chapters?.reduce((acc: number, chapter: Chapter) => {
+    story.output.chapters?.reduce((acc, chapter) => {
       return acc + (chapter.difficultWords?.length || 0);
     }, 0) || 0;
 
@@ -85,10 +85,10 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
       {/* Page Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-blue-500" />
+          <BarChart3 className="size-6 text-blue-500" />
           <h1 className="text-2xl font-bold">Reading Progress</h1>
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="h-3 w-3" />
+            <Sparkles className="size-3" />
             Analytics
           </Badge>
         </div>
@@ -165,7 +165,7 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
+            <Target className="size-5" />
             Chapter Progress
           </CardTitle>
         </CardHeader>
@@ -223,7 +223,7 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
+            <TrendingUp className="size-5" />
             Learning Goals
           </CardTitle>
         </CardHeader>
@@ -233,19 +233,19 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
               <h4 className="font-medium">Reading Goals</h4>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="size-4 text-green-500" />
                   <span className="text-sm">Start reading the story</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="size-4 text-green-500" />
                   <span className="text-sm">Complete first 3 chapters</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent animate-spin" />
+                  <div className="size-4 border-2 border-blue-500 rounded-full border-t-transparent animate-spin" />
                   <span className="text-sm">Reach 75% completion</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-muted-foreground rounded-full" />
+                  <div className="size-4 border-2 border-muted-foreground rounded-full" />
                   <span className="text-sm">Finish the entire story</span>
                 </div>
               </div>
@@ -255,19 +255,19 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
               <h4 className="font-medium">Learning Goals</h4>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="size-4 text-green-500" />
                   <span className="text-sm">Listen to audio narration</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent animate-spin" />
+                  <div className="size-4 border-2 border-blue-500 rounded-full border-t-transparent animate-spin" />
                   <span className="text-sm">Master 50% of vocabulary</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-muted-foreground rounded-full" />
+                  <div className="size-4 border-2 border-muted-foreground rounded-full" />
                   <span className="text-sm">Understand the moral lesson</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-muted-foreground rounded-full" />
+                  <div className="size-4 border-2 border-muted-foreground rounded-full" />
                   <span className="text-sm">Practice pronunciation</span>
                 </div>
               </div>
@@ -280,7 +280,7 @@ export default async function ProgressPage({ params }: ProgressPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+            <Clock className="size-5" />
             Reading Statistics
           </CardTitle>
         </CardHeader>
