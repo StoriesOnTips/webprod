@@ -22,7 +22,7 @@ export default async function OnboardingPage() {
       <div className="w-full max-w-2xl">
         <div className="bg-card rounded-lg shadow-lg border overflow-hidden">
           <div className="bg-primary px-8 py-6 text-primary-foreground">
-            <h1 className="text-3xl font-bold mb-2">Welcome to StoryLang!</h1>
+            <h1 className="text-3xl font-bold mb-2">Welcome to StoriesonTips!</h1>
             <p className="text-primary-foreground/80">
               Let's personalize your language learning journey with stories
             </p>

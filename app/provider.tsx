@@ -1,3 +1,4 @@
+// provider.tsx ko completely replace kar do:
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from "react";
@@ -8,10 +9,6 @@ import {
   type UserDetail,
   type UserDetailContextType,
 } from "./_context/UserDetailContext";
-import {
-  PayPalScriptProvider,
-  type ReactPayPalScriptOptions,
-} from "@paypal/react-paypal-js";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { createUser, fetchUser } from "@/lib/actions/user-actions";
@@ -36,44 +33,12 @@ function Provider({ children }: ProviderProps) {
   const hasInitialized = useRef(false);
   const hasRedirected = useRef(false);
 
-  // Memoized PayPal options
-  const paypalOptions: ReactPayPalScriptOptions | undefined = useMemo(() => {
-    const rawClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
-
-    if (!rawClientId) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("PayPal client ID not found in environment variables");
-      }
-      return undefined;
-    }
-
-    const clientId = rawClientId.trim();
-    const clientIdPattern = /^[a-zA-Z0-9_-]{10,128}$/;
-    
-    if (!clientIdPattern.test(clientId)) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("PayPal client ID validation failed");
-      }
-      return undefined;
-    }
-
-    return {
-      clientId,
-      currency: "USD",
-      intent: "capture",
-      components: "buttons,marks",
-      "disable-funding": "credit",
-      debug: process.env.NODE_ENV === "development",
-    };
-  }, []);
-
-  // Single initialization function with proper error handling
+  // Single initialization function
   const initializeUser = useCallback(async (
     userEmail: string, 
     userName: string, 
     userImage: string
   ): Promise<void> => {
-    // Prevent duplicate initialization
     if (initializationRef.current) {
       return initializationRef.current;
     }
@@ -83,7 +48,6 @@ function Provider({ children }: ProviderProps) {
       setError(null);
 
       try {
-        // First try to fetch existing user
         const fetchResult = await fetchUser(userEmail);
 
         if (fetchResult.success && fetchResult.data) {
@@ -93,7 +57,6 @@ function Provider({ children }: ProviderProps) {
           return;
         }
 
-        // Create new user if not found
         const createResult = await createUser({
           userEmail,
           userName: userName || "Anonymous User",
@@ -144,7 +107,6 @@ function Provider({ children }: ProviderProps) {
   // Handle user logout
   useEffect(() => {
     if (isLoaded && !user && hasInitialized.current) {
-      // Reset all state on logout
       setUserDetail(null);
       setInitState('idle');
       setError(null);
@@ -154,20 +116,15 @@ function Provider({ children }: ProviderProps) {
     }
   }, [isLoaded, user]);
 
-  // Handle routing - only runs once per session
+  // Handle routing
   useEffect(() => {
-    if (
-      initState !== 'success' || 
-      !userDetail || 
-      hasRedirected.current
-    ) {
+    if (initState !== 'success' || !userDetail || hasRedirected.current) {
       return;
     }
 
     const currentPath = window.location.pathname;
     const isOnboardingComplete = userDetail.onboardingCompleted;
 
-    // Prevent redirect loops
     if (
       (!isOnboardingComplete && currentPath.startsWith('/onboarding')) ||
       (isOnboardingComplete && currentPath === '/dashboard')
@@ -184,7 +141,7 @@ function Provider({ children }: ProviderProps) {
     }
   }, [initState, userDetail, router]);
 
-  // Refresh user function for manual updates
+  // Refresh user function
   const refreshUser = useCallback(async () => {
     const userEmail = user?.primaryEmailAddress?.emailAddress;
     const userName = user?.fullName || "";
@@ -194,7 +151,6 @@ function Provider({ children }: ProviderProps) {
       return;
     }
 
-    // Reset initialization state for refresh
     hasInitialized.current = false;
     initializationRef.current = null;
     
@@ -234,7 +190,7 @@ function Provider({ children }: ProviderProps) {
     });
   }, []);
 
-  // Context value - only recompute when necessary
+  // Context value
   const contextValue: UserDetailContextType = useMemo(() => ({
     userDetail,
     setUserDetail,
@@ -256,25 +212,10 @@ function Provider({ children }: ProviderProps) {
     showWarningToast,
   ]);
 
-  // PayPal wrapper component
-  const PayPalWrapper = ({ children: paypalChildren }: { children: ReactNode }) => {
-    if (!paypalOptions) {
-      return <>{paypalChildren}</>;
-    }
-
-    return (
-      <PayPalScriptProvider options={paypalOptions} deferLoading={false}>
-        {paypalChildren}
-      </PayPalScriptProvider>
-    );
-  };
-
   return (
     <UserDetailContext.Provider value={contextValue}>
-      <PayPalWrapper>
-        {children}
-        <Toaster />
-      </PayPalWrapper>
+      {children}
+      <Toaster />
     </UserDetailContext.Provider>
   );
 }

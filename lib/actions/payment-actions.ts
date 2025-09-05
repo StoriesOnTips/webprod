@@ -1,3 +1,4 @@
+// lib/actions/payment-actions.ts
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -5,555 +6,285 @@ import { db } from "@/config/db";
 import { Users, PaymentTransaction, PaymentAuditLog } from "@/config/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { v4 as uuidv4 } from "uuid";
+import { redirect } from "next/navigation";
+import { polar, CREDIT_PACKAGES, type PackageId } from "@/lib/polar";
 
-// Credit packages configuration
-const CREDIT_PACKAGES = {
-  1: { price: 3.99, credits: 3, name: "Starter Pack" },
-  2: { price: 4.99, credits: 7, name: "Popular Pack" },
-  3: { price: 8.99, credits: 12, name: "Value Pack" },
-  4: { price: 9.99, credits: 16, name: "Premium Pack" },
-} as const;
-
-// Configuration constants
-const CONFIG = {
-  PAYPAL_TIMEOUT: 30000,
-  MAX_RETRIES: 3,
-  RETRY_DELAYS: [1000, 2000, 4000], // Exponential backoff
-  AMOUNT_TOLERANCE: 0.01,
-} as const;
-
-// Types
 interface PaymentResult {
   success: boolean;
   message: string;
   newBalance?: number;
   error?: string;
-  canRetry?: boolean;
-  transactionId?: string;
 }
-
-interface PayPalVerificationResult {
-  success: boolean;
-  amount?: number;
-  captureId?: string;
-  status?: string;
-  error?: string;
-  retryable?: boolean;
-}
-
-interface PaymentAuditData {
-  transactionId: number;
-  previousStatus?: string;
-  newStatus: string;
-  changedBy: string;
-  reason?: string;
-}
-
-// ====================== MAIN PAYMENT PROCESSOR ======================
-/**
- * Process PayPal payment with retry logic, audit trail, and recovery
- */
-export async function processPayPalPayment(
-  orderID: string,
-  packageId: number
-): Promise<PaymentResult> {
-  const requestId = uuidv4().slice(0, 8);
-  let lastError: string = "";
-  
-  const { userId } = await auth();
-  
-  if (!userId) {
-    logPaymentEvent(orderID, "AUTH_FAILED", "No user authentication", 1, requestId);
-    return { 
-      success: false, 
-      message: "Authentication required. Please sign in and try again." 
-    };
-  }
-
-  // Check if payment already processed (idempotency protection)
-  const existingPayment = await checkExistingPayment(orderID, userId);
-  if (existingPayment) {
-    logPaymentEvent(orderID, "ALREADY_PROCESSED", 
-      `Payment already completed for user ${userId}`, 1, requestId);
-    
-    return { 
-      success: true, 
-      message: "Payment already processed successfully",
-      newBalance: existingPayment.newBalance,
-      transactionId: existingPayment.transactionId
-    };
-  }
-
-  // Validate package
-  const pkg = CREDIT_PACKAGES[packageId as keyof typeof CREDIT_PACKAGES];
-  if (!pkg) {
-    logPaymentEvent(orderID, "INVALID_PACKAGE", 
-      `Invalid package ID: ${packageId}`, 1, requestId);
-    return { 
-      success: false, 
-      message: "Invalid package selected. Please try again." 
-    };
-  }
-
-  // Process payment with retry logic
-  for (let attempt = 1; attempt <= CONFIG.MAX_RETRIES; attempt++) {
-    try {
-      // Verify payment with PayPal (with timeout protection)
-      const paypalResult = await withTimeout(
-        verifyPayPalOrder(orderID, requestId),
-        CONFIG.PAYPAL_TIMEOUT,
-        "PayPal verification"
-      );
-
-      if (!paypalResult.success) {
-        logPaymentEvent(orderID, "PAYPAL_VERIFICATION_FAILED", 
-          paypalResult.error || "PayPal verification failed", attempt, requestId);
-        
-        lastError = paypalResult.error || "PayPal verification failed";
-        
-        // Retry logic for retryable errors
-        if (attempt < CONFIG.MAX_RETRIES && paypalResult.retryable) {
-          await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAYS[attempt - 1]));
-          continue;
-        }
-        
-        return { 
-          success: false, 
-          message: "Payment verification failed. Please try again or contact support.",
-          error: paypalResult.error,
-          canRetry: paypalResult.retryable 
-        };
-      }
-
-      // Validate payment amount
-      if (Math.abs((paypalResult.amount || 0) - pkg.price) > CONFIG.AMOUNT_TOLERANCE) {
-        const errorMsg = `Expected: ${pkg.price}, Received: ${paypalResult.amount}`;
-        logPaymentEvent(orderID, "AMOUNT_MISMATCH", errorMsg, attempt, requestId);
-        
-        return { 
-          success: false, 
-          message: "Payment amount mismatch. Please try again." 
-        };
-      }
-
-      // Process payment atomically with database transaction
-      const result = await processPaymentTransaction({
-        userId,
-        orderID,
-        packageId,
-        pkg,
-        paypalResult,
-        requestId,
-        attempt
-      });
-
-      if (result.success) {
-        logPaymentEvent(orderID, "SUCCESS", 
-          `Successfully added ${pkg.credits} credits to user ${userId}`, attempt, requestId);
-
-        // Revalidate relevant pages
-        revalidatePath("/dashboard");
-        revalidatePath("/buy-coins");
-        revalidatePath("/profile");
-
-        return {
-          success: true,
-          message: `Successfully purchased ${pkg.name}! ${pkg.credits} credits added to your account.`,
-          newBalance: result.newBalance,
-          transactionId: result.transactionId
-        };
-      } else {
-        throw new Error(result.error || "Transaction processing failed");
-      }
-
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      lastError = errorMsg;
-      
-      logPaymentEvent(orderID, "PROCESSING_ERROR", errorMsg, attempt, requestId);
-      
-      console.error(`Payment attempt ${attempt}/${CONFIG.MAX_RETRIES} failed:`, {
-        orderID,
-        attempt,
-        error: errorMsg,
-        requestId
-      });
-      
-      // Retry logic for recoverable errors
-      if (attempt < CONFIG.MAX_RETRIES) {
-        const isRetryableError = 
-          errorMsg.includes("timeout") || 
-          errorMsg.includes("network") ||
-          errorMsg.includes("ECONNRESET") ||
-          errorMsg.includes("fetch failed") ||
-          errorMsg.includes("ECONN");
-          
-        if (isRetryableError) {
-          await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAYS[attempt - 1]));
-          continue;
-        }
-      }
-      
-      return { 
-        success: false, 
-        message: "Payment processing failed. Please try again or contact support.",
-        error: errorMsg,
-        canRetry: attempt < CONFIG.MAX_RETRIES
-      };
-    }
-  }
-
-  return { 
-    success: false, 
-    message: "Payment failed after multiple attempts. Please contact support if this continues.",
-    error: lastError,
-    canRetry: false 
-  };
-}
-
-// ====================== DATABASE TRANSACTION PROCESSING ======================
 
 /**
- * Process payment transaction atomically with full audit trail and race condition protection
+ * Create Polar checkout and redirect - Production Ready
  */
-async function processPaymentTransaction({
-  userId,
-  orderID,
-  packageId,
-  pkg,
-  paypalResult,
-  requestId,
-  attempt
-}: {
-  userId: string;
-  orderID: string;
-  packageId: number;
-  pkg: typeof CREDIT_PACKAGES[keyof typeof CREDIT_PACKAGES];
-  paypalResult: PayPalVerificationResult;
-  requestId: string;
-  attempt: number;
-}): Promise<{ success: boolean; newBalance?: number; transactionId?: string; error?: string }> {
-  
+export async function createPolarCheckout(packageId: number): Promise<never> {
   try {
-    const result = await db.transaction(async (tx) => {
-      // 1. Check for duplicate orders within transaction to prevent race conditions
-      const existingInTransaction = await tx
-        .select({ id: PaymentTransaction.id })
-        .from(PaymentTransaction)
-        .where(sql`${PaymentTransaction.orderId} = ${orderID} AND ${PaymentTransaction.userId} = ${userId}`)
-        .limit(1);
-
-      if (existingInTransaction.length > 0) {
-        throw new Error("Duplicate order detected (orderId already recorded)");
-      }
-
-      // 2. Create payment transaction record
-      const [paymentRecord] = await tx
-        .insert(PaymentTransaction)
-        .values({
-          userId,
-          orderId: orderID,
-          captureId: paypalResult.captureId || null,
-          amount: pkg.price.toString(),
-          currency: "USD",
-          status: paypalResult.status || "COMPLETED",
-          rawPayload: {
-            packageId,
-            packageName: pkg.name,
-            credits: pkg.credits,
-            attempt,
-            requestId,
-            paypalData: {
-              captureId: paypalResult.captureId,
-              status: paypalResult.status,
-              amount: paypalResult.amount
-            },
-            processedAt: new Date().toISOString()
-          },
-          verifiedAt: new Date(),
-        })
-        .returning({ 
-          id: PaymentTransaction.id,
-          orderId: PaymentTransaction.orderId 
-        });
-
-      // 3. Add credits to user account
-      const [userResult] = await tx
-        .update(Users)
-        .set({
-          credits: sql`${Users.credits} + ${pkg.credits}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(Users.clerkUserId, userId))
-        .returning({ credits: Users.credits });
-
-      if (!userResult) {
-        throw new Error("User not found during credit update");
-      }
-
-      // 4. Create audit log entry
-      await tx
-        .insert(PaymentAuditLog)
-        .values({
-          transactionId: paymentRecord.id,
-          newStatus: "COMPLETED",
-          changedBy: "system",
-          reason: `Payment processed successfully - Added ${pkg.credits} credits`,
-        });
-
-      return {
-        success: true,
-        newBalance: userResult.credits,
-        transactionId: paymentRecord.id.toString()
-      };
-    });
-
-    return result;
-
-  } catch (error) {
-    console.error("Database transaction failed:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Database transaction failed"
-    };
-  }
-}
-
-// ====================== PAYPAL VERIFICATION ======================
-
-/**
- * Verify and capture PayPal payment
- */
-async function verifyPayPalOrder(orderID: string, requestId: string): Promise<PayPalVerificationResult> {
-  try {
-    const clientId = process.env.PAYPAL_CLIENT_ID;
-    const secret = process.env.PAYPAL_SECRET;
-    const baseUrl = process.env.PAYPAL_BASE_URL || "https://api-m.sandbox.paypal.com";
-
-    if (!clientId || !secret) {
-      return { 
-        success: false, 
-        error: "PayPal configuration missing",
-        retryable: false
-      };
-    }
-
-    const auth = Buffer.from(`${clientId}:${secret}`).toString("base64");
-
-    // Capture the payment
-    const response = await fetch(`${baseUrl}/v2/checkout/orders/${orderID}/capture`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "PayPal-Request-Id": `${orderID}-${requestId}-${Date.now()}`, // Idempotency key
-        "Prefer": "return=representation",
-      },
-    });
-
-    if (!response.ok) {
-      // Handle specific PayPal error cases
-      if (response.status === 422) {
-        // Payment might already be captured, check status
-        return await checkPayPalOrderStatus(orderID, requestId);
-      }
-
-      const errorText = await response.text().catch(() => "Unable to read error");
-      
-      return { 
-        success: false, 
-        error: `PayPal API error: ${response.status} - ${errorText}`,
-        retryable: response.status >= 500 // Retry on server errors
-      };
-    }
-
-    const data = await response.json();
+    const { userId } = await auth();
     
-    if (data.status !== "COMPLETED") {
-      return { 
-        success: false, 
-        error: `Payment not completed. Status: ${data.status}`,
-        retryable: data.status === "APPROVED" // Can retry if approved
-      };
+    if (!userId) {
+      throw new Error('Authentication required');
     }
 
-    // Extract payment details
-    const capture = data.purchase_units?.[0]?.payments?.captures?.[0];
-    const amount = parseFloat(capture?.amount?.value || "0");
-
-    return { 
-      success: true, 
-      amount,
-      captureId: capture?.id,
-      status: data.status
-    };
-
-  } catch (error) {
-    console.error("PayPal verification error:", error);
-    
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    const isNetworkError = errorMsg.includes("fetch") || errorMsg.includes("network");
-    
-    return {
-      success: false,
-      error: errorMsg,
-      retryable: isNetworkError
-    };
-  }
-}
-
-/**
- * Check PayPal order status (for already captured orders)
- */
-async function checkPayPalOrderStatus(orderID: string, requestId: string): Promise<PayPalVerificationResult> {
-  try {
-    const clientId = process.env.PAYPAL_CLIENT_ID;
-    const secret = process.env.PAYPAL_SECRET;
-    const baseUrl = process.env.PAYPAL_BASE_URL || "https://api-m.sandbox.paypal.com";
-
-    if (!clientId || !secret) {
-      return { success: false, error: "PayPal configuration missing", retryable: false };
+    const pkg = CREDIT_PACKAGES[packageId as PackageId];
+    if (!pkg) {
+      throw new Error('Invalid package selected');
     }
 
-    const auth = Buffer.from(`${clientId}:${secret}`).toString("base64");
-
-    const response = await fetch(`${baseUrl}/v2/checkout/orders/${orderID}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return { 
-        success: false, 
-        error: `PayPal status check failed: ${response.status}`,
-        retryable: response.status >= 500
-      };
-    }
-
-    const data = await response.json();
-    
-    if (data.status === "COMPLETED") {
-      const capture = data.purchase_units?.[0]?.payments?.captures?.[0];
-      const amount = parseFloat(capture?.amount?.value || "0");
-      
-      return { 
-        success: true, 
-        amount,
-        captureId: capture?.id,
-        status: data.status
-      };
-    }
-
-    return { 
-      success: false, 
-      error: `Order status: ${data.status}`,
-      retryable: false
-    };
-
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    return {
-      success: false,
-      error: errorMsg,
-      retryable: errorMsg.includes("fetch") || errorMsg.includes("network")
-    };
-  }
-}
-
-// ====================== UTILITY FUNCTIONS ======================
-
-/**
- * Check if payment has already been processed (idempotency) - now scoped to current user
- */
-async function checkExistingPayment(orderID: string, userId: string): Promise<{
-  newBalance: number;
-  transactionId: string;
-} | null> {
-  try {
-    const existing = await db
+    // Get user details from database
+    const [user] = await db
       .select({ 
-        userId: PaymentTransaction.userId,
-        id: PaymentTransaction.id,
-        status: PaymentTransaction.status
+        userEmail: Users.userEmail,
+        userName: Users.userName 
       })
-      .from(PaymentTransaction)
-      .where(sql`${PaymentTransaction.orderId} = ${orderID} AND ${PaymentTransaction.userId} = ${userId}`)
+      .from(Users)
+      .where(eq(Users.clerkUserId, userId))
       .limit(1);
-    
-    if (existing.length > 0 && existing[0].status === "COMPLETED") {
-      const user = await db
-        .select({ credits: Users.credits })
-        .from(Users)
-        .where(eq(Users.clerkUserId, userId))
-        .limit(1);
-      
-      if (user.length > 0) {
-        return { 
-          newBalance: user[0].credits,
-          transactionId: existing[0].id.toString()
-        };
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error checking existing payment:", error);
-    return null;
-  }
-}
 
-/**
- * Log payment events for audit trail - Made synchronous to avoid await in loops
- */
-function logPaymentEvent(
-  orderID: string, 
-  status: string, 
-  message: string, 
-  attempt: number,
-  requestId: string
-): void {
-  try {
-    console.log(`Payment ${orderID} [${requestId}] - Attempt ${attempt}: ${status} - ${message}`, {
-      orderID,
-      status,
-      message,
-      attempt,
-      requestId,
+    if (!user) {
+      throw new Error('User not found in database');
+    }
+
+    // Validate email format
+    if (!user.userEmail || !user.userEmail.includes('@')) {
+      throw new Error('Invalid user email');
+    }
+
+    // Create Polar checkout using correct API
+    const checkout = await polar.checkouts.create({
+      customerBillingAddress: {
+        country: "US",
+      },
+      products: [pkg.productId],
+      successUrl: `${process.env.NEXT_PUBLIC_URL}/buy-coins/success?session_id={CHECKOUT_ID}`,
+      customerEmail: user.userEmail,
+      metadata: {
+        userId: userId,
+        packageId: packageId.toString(),
+        credits: pkg.credits.toString(),
+        packageName: pkg.name,
+        userEmail: user.userEmail,
+        source: 'storiesontips'
+      }
+    });
+
+    if (!checkout.url) {
+      throw new Error('Checkout URL not returned from Polar');
+    }
+
+    // Log successful checkout creation
+    console.log(`Polar checkout created for user ${userId}: ${checkout.id}`);
+
+    // This will throw NEXT_REDIRECT - it's expected behavior!
+    redirect(checkout.url);
+
+  } catch (error) {
+    // Check if it's the expected Next.js redirect
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      // Re-throw to let Next.js handle the redirect
+      throw error;
+    }
+
+    console.error("Polar checkout creation failed:", {
+      error: error instanceof Error ? error.message : error,
+      packageId,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    // Fail silently for logging to not interrupt payment flow
-    console.error("Logging error:", error);
+    
+    // Throw with user-friendly message
+    if (error instanceof Error && error.message.includes('Authentication')) {
+      throw new Error('Please sign in to continue with your purchase');
+    } else if (error instanceof Error && error.message.includes('Invalid package')) {
+      throw new Error('Selected package is no longer available');
+    } else if (error instanceof Error && error.message.includes('User not found')) {
+      throw new Error('Account not found. Please refresh and try again');
+    } else {
+      throw new Error('Unable to create checkout. Please try again or contact support');
+    }
   }
 }
 
 /**
- * Timeout wrapper for async operations
+ * Add credits to user (called by webhook) - Production Ready Sequential Operations
  */
-async function withTimeout<T>(
-  promise: Promise<T>, 
-  ms: number, 
-  operation: string
-): Promise<T> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`${operation} timeout after ${ms}ms`)), ms)
-  );
-  
-  return Promise.race([promise, timeout]);
+export async function addCreditsToUser(
+  userId: string, 
+  credits: number, 
+  orderId: string,
+  packageId: number
+): Promise<PaymentResult> {
+  try {
+    // Input validation
+    if (!userId || typeof userId !== 'string' || userId.length < 1) {
+      throw new Error('Invalid user ID provided');
+    }
+    
+    if (!credits || credits <= 0 || !Number.isInteger(credits) || credits > 100) {
+      throw new Error('Invalid credits amount provided');
+    }
+    
+    if (!orderId || typeof orderId !== 'string' || orderId.length < 1) {
+      throw new Error('Invalid order ID provided');
+    }
+
+    if (![1, 2, 3, 4].includes(packageId)) {
+      throw new Error('Invalid package ID provided');
+    }
+
+    const pkg = CREDIT_PACKAGES[packageId as PackageId];
+    if (!pkg) {
+      throw new Error('Package configuration not found');
+    }
+
+    console.log(`Processing credit addition: ${credits} coins for user ${userId}, order ${orderId}`);
+
+    // Step 1: Check for duplicate orders FIRST
+    const existingPayment = await db
+      .select({ 
+        id: PaymentTransaction.id,
+        status: PaymentTransaction.status 
+      })
+      .from(PaymentTransaction)
+      .where(eq(PaymentTransaction.orderId, orderId))
+      .limit(1);
+
+    if (existingPayment.length > 0) {
+      console.log(`Duplicate order detected: ${orderId} already processed`);
+      return {
+        success: false,
+        message: "Payment already processed",
+        error: "Duplicate order prevention"
+      };
+    }
+
+    // Step 2: Verify user exists and get current balance
+    const [currentUser] = await db
+      .select({ 
+        clerkUserId: Users.clerkUserId,
+        credits: Users.credits,
+        userEmail: Users.userEmail
+      })
+      .from(Users)
+      .where(eq(Users.clerkUserId, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      throw new Error("User not found in database");
+    }
+
+    console.log(`User found: ${currentUser.userEmail}, current balance: ${currentUser.credits}`);
+
+    // Step 3: Create payment record FIRST (for audit trail)
+    const [paymentRecord] = await db
+      .insert(PaymentTransaction)
+      .values({
+        userId,
+        orderId: orderId,
+        captureId: orderId,
+        amount: pkg.price.toString(),
+        currency: "USD",
+        status: "COMPLETED",
+        rawPayload: {
+          packageId,
+          packageName: pkg.name,
+          credits: credits,
+          processedAt: new Date().toISOString(),
+          source: 'polar',
+          priceVerified: pkg.price,
+          userEmailAtTime: currentUser.userEmail,
+          previousBalance: currentUser.credits
+        },
+        verifiedAt: new Date(),
+      })
+      .returning({ 
+        id: PaymentTransaction.id,
+        orderId: PaymentTransaction.orderId 
+      });
+
+    console.log(`Payment record created: ${paymentRecord.id} for order ${paymentRecord.orderId}`);
+
+    // Step 4: Update user credits
+    const [updatedUser] = await db
+      .update(Users)
+      .set({
+        credits: sql`${Users.credits} + ${credits}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(Users.clerkUserId, userId))
+      .returning({ 
+        credits: Users.credits,
+        clerkUserId: Users.clerkUserId
+      });
+
+    if (!updatedUser) {
+      // If user update failed, we need to log this critical error
+      console.error(`CRITICAL: User credit update failed for user ${userId}, payment record ${paymentRecord.id} exists but credits not added`);
+      
+      // Try to mark payment as failed
+      await db
+        .update(PaymentTransaction)
+        .set({ 
+          status: "FAILED",
+          rawPayload: sql`${PaymentTransaction.rawPayload} || ${{ 
+            errorReason: "User credit update failed",
+            failedAt: new Date().toISOString()
+          }}`
+        })
+        .where(eq(PaymentTransaction.id, paymentRecord.id));
+
+      throw new Error("Failed to update user credits - payment record created but credits not added");
+    }
+
+    console.log(`User credits updated: ${currentUser.credits} -> ${updatedUser.credits} (+${credits})`);
+
+    // Step 5: Create audit log
+    await db
+      .insert(PaymentAuditLog)
+      .values({
+        transactionId: paymentRecord.id,
+        newStatus: "COMPLETED",
+        changedBy: "polar_webhook",
+        reason: `Polar payment processed successfully - Added ${credits} coins to user account (Package: ${pkg.name}). Balance: ${currentUser.credits} -> ${updatedUser.credits}`,
+      });
+
+    console.log(`Audit log created for transaction ${paymentRecord.id}`);
+
+    // Step 6: Revalidate pages to update UI
+    revalidatePath("/dashboard");
+    revalidatePath("/buy-coins");
+
+    console.log(`SUCCESS: Credits added successfully for user ${userId}. New balance: ${updatedUser.credits}`);
+
+    return {
+      success: true,
+      message: `Successfully added ${credits} coins to your account!`,
+      newBalance: updatedUser.credits
+    };
+
+  } catch (error) {
+    console.error("CRITICAL ERROR in addCreditsToUser:", {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : null,
+      userId,
+      credits,
+      orderId,
+      packageId,
+      timestamp: new Date().toISOString()
+    });
+
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to add coins to account",
+      error: error instanceof Error ? error.message : "Unknown error"
+    };
+  }
 }
 
-// ====================== RECOVERY FUNCTIONS ======================
-
 /**
- * Recover missing credits for completed PayPal payments - Fixed to prevent double-crediting
+ * Manual credit recovery function (in case of webhook failures)
  */
-export async function recoverMissingCredits(): Promise<PaymentResult> {
+export async function recoverMissingCredits(orderId: string): Promise<PaymentResult> {
   try {
     const { userId } = await auth();
     
@@ -561,109 +292,90 @@ export async function recoverMissingCredits(): Promise<PaymentResult> {
       return { success: false, message: "Authentication required" };
     }
 
-    // Find completed PayPal transactions without corresponding credit recovery - exclude already recovered
-    const missingCredits = await db
+    // Find the payment record
+    const [payment] = await db
       .select({
-        orderId: PaymentTransaction.orderId,
-        amount: PaymentTransaction.amount,
+        id: PaymentTransaction.id,
+        userId: PaymentTransaction.userId,
         rawPayload: PaymentTransaction.rawPayload,
-        id: PaymentTransaction.id
+        status: PaymentTransaction.status
       })
       .from(PaymentTransaction)
-      .where(sql`
-        ${PaymentTransaction.userId} = ${userId} 
-        AND ${PaymentTransaction.status} = 'COMPLETED' 
-        AND ${PaymentTransaction.verifiedAt} IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM ${PaymentAuditLog} lap
-          WHERE lap.transactionId = ${PaymentTransaction.id}
-          AND lap.newStatus = 'CREDITS_RECOVERED'
-        )
-      `);
+      .where(eq(PaymentTransaction.orderId, orderId))
+      .limit(1);
 
-    if (missingCredits.length === 0) {
+    if (!payment) {
+      return { success: false, message: "Payment record not found" };
+    }
+
+    if (payment.userId !== userId) {
+      return { success: false, message: "Payment does not belong to this user" };
+    }
+
+    const payload = payment.rawPayload as any;
+    const credits = payload.credits;
+    const previousBalance = payload.previousBalance || 0;
+
+    // Check current user balance
+    const [currentUser] = await db
+      .select({ credits: Users.credits })
+      .from(Users)
+      .where(eq(Users.clerkUserId, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      return { success: false, message: "User not found" };
+    }
+
+    // If user already has the credits, no recovery needed
+    if (currentUser.credits >= previousBalance + credits) {
       return { 
         success: true, 
-        message: "No missing credits found",
-        newBalance: 0
+        message: "Credits already applied - no recovery needed",
+        newBalance: currentUser.credits
       };
     }
 
-    let totalRecovered = 0;
-    
-    // Process all transactions in batch instead of loop with awaits
-    const creditUpdates = missingCredits
-      .map(transaction => {
-        const payload = transaction.rawPayload as any;
-        const credits = payload?.credits || 0;
-        return { transaction, credits };
+    // Add missing credits
+    const [updatedUser] = await db
+      .update(Users)
+      .set({
+        credits: sql`${Users.credits} + ${credits}`,
+        updatedAt: new Date(),
       })
-      .filter(({ credits }) => credits > 0);
+      .where(eq(Users.clerkUserId, userId))
+      .returning({ credits: Users.credits });
 
-    if (creditUpdates.length > 0) {
-      // Calculate total credits to recover
-      totalRecovered = creditUpdates.reduce((sum, { credits }) => sum + credits, 0);
-      
-      // Execute all operations in a single transaction
-      await db.transaction(async (tx) => {
-        // Update user credits in one operation
-        await tx
-          .update(Users)
-          .set({
-            credits: sql`${Users.credits} + ${totalRecovered}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(Users.clerkUserId, userId));
-        
-        // Insert all audit logs in batch
-        const auditLogs = creditUpdates.map(({ transaction, credits }) => ({
-          transactionId: transaction.id,
-          previousStatus: "COMPLETED" as const,
-          newStatus: "CREDITS_RECOVERED" as const,
-          changedBy: "recovery_system",
-          reason: `Recovered ${credits} missing credits`,
-        }));
-        
-        if (auditLogs.length > 0) {
-          await tx.insert(PaymentAuditLog).values(auditLogs);
-        }
+    // Log recovery
+    await db
+      .insert(PaymentAuditLog)
+      .values({
+        transactionId: payment.id,
+        newStatus: "RECOVERED",
+        changedBy: "manual_recovery",
+        reason: `Manual credit recovery - Added ${credits} missing coins`,
       });
 
-      revalidatePath("/dashboard");
-      revalidatePath("/buy-coins");
-      
-      // Get the actual user balance after recovery
-      const [userAfter] = await db
-        .select({ credits: Users.credits })
-        .from(Users)
-        .where(eq(Users.clerkUserId, userId))
-        .limit(1);
-      
-      return {
-        success: true,
-        message: `Recovered ${totalRecovered} missing credits!`,
-        newBalance: userAfter?.credits ?? undefined
-      };
-    }
+    revalidatePath("/dashboard");
+    revalidatePath("/buy-coins");
 
-    return { 
-      success: true, 
-      message: "No credits needed recovery",
-      newBalance: 0 
+    return {
+      success: true,
+      message: `Recovered ${credits} missing coins!`,
+      newBalance: updatedUser?.credits
     };
 
   } catch (error) {
-    console.error("Credit recovery error:", error);
+    console.error("Credit recovery failed:", error);
     return {
       success: false,
-      message: "Credit recovery failed",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: "Credit recovery failed"
     };
   }
 }
 
 /**
- * Get user's payment history
+ * Get user's payment history - Production Ready
  */
 export async function getUserPaymentHistory(): Promise<{
   success: boolean;
@@ -705,5 +417,26 @@ export async function getUserPaymentHistory(): Promise<{
       success: false,
       message: "Failed to retrieve payment history"
     };
+  }
+}
+
+/**
+ * Verify webhook signature - Dev Version (Simple)
+ */
+export async function verifyPolarWebhookSignature(
+  body: string, 
+  signature: string | null, 
+  secret: string
+): Promise<boolean> {
+  if (!signature || !secret) {
+    return false;
+  }
+
+  try {
+    // Simple comparison for development
+    return signature === secret;
+  } catch (error) {
+    console.error('Webhook signature verification failed:', error);
+    return false;
   }
 }

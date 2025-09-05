@@ -10,7 +10,7 @@ import {
   ChevronRight,
   Sparkles,
   AlertCircle,
-  CreditCard,
+  Coins,
 } from "lucide-react";
 import {
   generateStoryAction,
@@ -220,7 +220,7 @@ export default function CreateStoryForm({ children }: CreateStoryFormProps) {
       {/* Credit Status Alert */}
       {!hasCredits && !creditsLoading && (
         <Alert className="border-red-200 bg-red-50">
-          <CreditCard className="h-4 w-4 text-red-600" />
+          <Coins className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
             You don't have enough credits to create stories.
             <Link href="/buy-credits">
@@ -260,7 +260,7 @@ export default function CreateStoryForm({ children }: CreateStoryFormProps) {
           <div className="flex items-center gap-4">
             {/* Credits Display */}
             <div className="flex items-center gap-2 text-sm">
-              <CreditCard className="w-4 h-4 text-violet-600" />
+              <Coins className="w-4 h-4 text-violet-600" />
               {creditsLoading ? (
                 <span className="text-gray-500">Loading...</span>
               ) : (
@@ -270,7 +270,7 @@ export default function CreateStoryForm({ children }: CreateStoryFormProps) {
                     userCredits > 0 ? "text-green-600" : "text-red-600"
                   )}
                 >
-                  {userCredits} credits
+                  {userCredits} coins
                 </span>
               )}
             </div>
